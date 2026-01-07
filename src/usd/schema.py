@@ -248,3 +248,4 @@ class InputDocument(BaseModel):
     context: Optional[Dict[str, Any]] = None
     options: Optional[Dict[str, Any]] = None
 
+
