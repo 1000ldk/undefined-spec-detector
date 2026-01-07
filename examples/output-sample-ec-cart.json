@@ -1,0 +1,143 @@
+{
+  "document_id": "DOC-EXAMPLE-001",
+  "analyzed_at": "2026-01-07T10:00:00Z",
+  "input": {
+    "source": "examples/input-sample-ec-cart.md",
+    "domain": "ecommerce"
+  },
+  "undefined_elements": [
+    {
+      "id": "UE-001",
+      "category": "振る舞いの曖昧さ",
+      "subcategory": "実行条件",
+      "title": "在庫確認のタイミングが不明",
+      "description": "「在庫がある場合」の確認タイミングと方法が定義されていない",
+      "questions": [
+        "在庫確認はリアルタイムで行うか、キャッシュを使用するか？",
+        "複数ユーザーが同時に同じ商品をカートに追加した場合の挙動は？",
+        "在庫予約の仕組みは必要か？"
+      ],
+      "risk_level": "high",
+      "recommended_phase": "design"
+    },
+    {
+      "id": "UE-002",
+      "category": "データ定義の欠落",
+      "subcategory": "制約条件",
+      "title": "価格のデータ仕様が不明",
+      "description": "価格の範囲、小数点の扱いが定義されていない",
+      "questions": [
+        "価格の最小値は？（0円？1円？）",
+        "価格の最大値は？",
+        "小数点は許可するか？",
+        "通貨単位は？（円のみ？）"
+      ],
+      "risk_level": "medium",
+      "recommended_phase": "requirement_definition"
+    },
+    {
+      "id": "UE-003",
+      "category": "境界条件の未定義",
+      "subcategory": "上限/下限",
+      "title": "カート内の商品数上限が不明",
+      "description": "カートに何個まで商品を追加できるか定義されていない",
+      "questions": [
+        "カート内の商品種類数の上限は？",
+        "同一商品の数量上限は？",
+        "上限に達した場合のユーザー通知は？"
+      ],
+      "risk_level": "low",
+      "recommended_phase": "design"
+    },
+    {
+      "id": "UE-004",
+      "category": "エラーハンドリングの欠落",
+      "subcategory": "ユーザーフィードバック",
+      "title": "在庫切れ時のエラー処理が不明",
+      "description": "在庫がない場合のユーザーへのフィードバックが定義されていない",
+      "questions": [
+        "エラーメッセージは何を表示するか？",
+        "在庫復活の通知機能は必要か？",
+        "代替商品の提案は行うか？"
+      ],
+      "risk_level": "medium",
+      "recommended_phase": "implementation"
+    },
+    {
+      "id": "UE-005",
+      "category": "非機能要件の曖昧さ",
+      "subcategory": "パフォーマンス",
+      "title": "「高速に」の具体的基準が不明",
+      "description": "パフォーマンス要件が曖昧で測定不可能",
+      "questions": [
+        "カート追加の応答時間の目標値は？（例: 500ms以内）",
+        "同時アクセス数の想定は？",
+        "ページ表示時間の目標は？"
+      ],
+      "risk_level": "medium",
+      "recommended_phase": "design"
+    },
+    {
+      "id": "UE-006",
+      "category": "非機能要件の曖昧さ",
+      "subcategory": "セキュリティ",
+      "title": "「安全に」の具体的対策が不明",
+      "description": "セキュリティ要件が抽象的で実装指針がない",
+      "questions": [
+        "CSRF対策は必要か？",
+        "カート情報の保存場所は？（Cookie？サーバー？）",
+        "カートのセッション管理方法は？",
+        "価格改ざん対策は？"
+      ],
+      "risk_level": "high",
+      "recommended_phase": "design"
+    },
+    {
+      "id": "UE-007",
+      "category": "振る舞いの曖昧さ",
+      "subcategory": "実行順序",
+      "title": "在庫減算のタイミングが不明",
+      "description": "「決済完了後」の具体的なタイミングが曖昧",
+      "questions": [
+        "決済完了とはどの時点か？（与信OK？決済完了通知受信？）",
+        "決済と在庫減算のトランザクション境界は？",
+        "在庫減算失敗時のロールバック方法は？"
+      ],
+      "risk_level": "high",
+      "recommended_phase": "design"
+    },
+    {
+      "id": "UE-008",
+      "category": "データ定義の欠落",
+      "subcategory": "リレーション",
+      "title": "カートとユーザーの関係が不明",
+      "description": "ログイン前のカート、複数デバイスでの扱いが未定義",
+      "questions": [
+        "ログインしていないユーザーもカート使用可能か？",
+        "ログイン前後でカートは引き継がれるか？",
+        "複数デバイスでカートは同期されるか？",
+        "カートの有効期限は？"
+      ],
+      "risk_level": "medium",
+      "recommended_phase": "requirement_definition"
+    }
+  ],
+  "summary": {
+    "total_undefined": 8,
+    "by_risk_level": {
+      "high": 3,
+      "medium": 4,
+      "low": 1
+    },
+    "by_category": {
+      "振る舞いの曖昧さ": 2,
+      "データ定義の欠落": 2,
+      "境界条件の未定義": 1,
+      "エラーハンドリングの欠落": 1,
+      "非機能要件の曖昧さ": 2
+    },
+    "estimated_resolution_effort": "3-5人日"
+  }
+}
+
+

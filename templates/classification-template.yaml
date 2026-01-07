@@ -1,0 +1,145 @@
+# 未定義要素の分類テンプレート（YAML形式）
+
+version: "1.0.0"
+last_updated: "2026-01-07"
+
+# 主要カテゴリの定義
+categories:
+  - id: "data_definition_gap"
+    name: "データ定義の欠落"
+    description: "データの構造、形式、制約が明確でない状態"
+    subcategories:
+      - id: "type_definition"
+        name: "型定義"
+        keywords: ["型", "データ型", "形式"]
+      - id: "constraints"
+        name: "制約条件"
+        keywords: ["最大", "最小", "範囲", "制限"]
+      - id: "format"
+        name: "フォーマット"
+        keywords: ["フォーマット", "形式", "書式"]
+      - id: "nullability"
+        name: "必須/任意"
+        keywords: ["必須", "任意", "null", "空"]
+      - id: "default_value"
+        name: "初期値"
+        keywords: ["初期値", "デフォルト", "既定値"]
+
+  - id: "behavior_ambiguity"
+    name: "振る舞いの曖昧さ"
+    description: "システムの動作やプロセスの手順が複数解釈可能な状態"
+    subcategories:
+      - id: "execution_order"
+        name: "実行順序"
+        keywords: ["順序", "順番", "シーケンス"]
+      - id: "timing"
+        name: "実行条件"
+        keywords: ["いつ", "タイミング", "時刻"]
+      - id: "synchronicity"
+        name: "同期/非同期"
+        keywords: ["同期", "非同期", "待機"]
+
+  - id: "responsibility_gap"
+    name: "責任分担の不明確さ"
+    description: "誰が・何が・どこで実行/判断するかが未定義の状態"
+    subcategories:
+      - id: "executor"
+        name: "実行主体"
+        keywords: ["誰が", "どこで", "クライアント", "サーバー"]
+
+  - id: "boundary_condition_gap"
+    name: "境界条件の未定義"
+    description: "正常系と異常系の境界、限界値が明確でない状態"
+    subcategories:
+      - id: "limits"
+        name: "上限/下限"
+        keywords: ["上限", "下限", "最大", "最小"]
+      - id: "empty_case"
+        name: "空集合"
+        keywords: ["0件", "なし", "空"]
+
+  - id: "error_handling_gap"
+    name: "エラーハンドリングの欠落"
+    description: "異常系・例外処理が定義されていない状態"
+    subcategories:
+      - id: "detection"
+        name: "検出方法"
+        keywords: ["検出", "判定", "チェック"]
+
+  - id: "non_functional_gap"
+    name: "非機能要件の曖昧さ"
+    description: "パフォーマンス、セキュリティなどの品質特性が未定義の状態"
+    subcategories:
+      - id: "performance"
+        name: "パフォーマンス"
+        keywords: ["速度", "高速", "遅延", "レスポンス"]
+
+# 検出ルール
+detection_rules:
+  - id: "ambiguous_adjectives"
+    name: "曖昧な形容詞の検出"
+    pattern: "速い|遅い|大きい|小さい|多い|少ない|高い|低い|適切|十分"
+    category: "non_functional_gap"
+    confidence: 0.8
+
+  - id: "undefined_conditions"
+    name: "条件文での未定義"
+    pattern: "場合|とき|際|条件"
+    check: "条件の具体的な定義があるか"
+    category: "behavior_ambiguity"
+    confidence: 0.7
+
+  - id: "missing_error_handling"
+    name: "エラーハンドリングの欠落"
+    pattern: "できる|可能|実行"
+    check: "できない場合の記述があるか"
+    category: "error_handling_gap"
+    confidence: 0.6
+
+# 質問テンプレート
+question_templates:
+  - category: "data_definition_gap"
+    subcategory: "type_definition"
+    templates:
+      - "{entity}のデータ型は何ですか？"
+      - "{entity}は何形式で保存しますか？"
+
+  - category: "behavior_ambiguity"
+    subcategory: "timing"
+    templates:
+      - "{action}はいつ実行されますか？"
+      - "{action}のトリガーは何ですか？"
+
+  - category: "error_handling_gap"
+    subcategory: "detection"
+    templates:
+      - "{action}が失敗した場合、どう処理しますか？"
+      - "エラー時のユーザーへのフィードバックは？"
+
+# リスクパターン
+risk_patterns:
+  - id: "inventory_race_condition"
+    name: "在庫の同時実行制御不備"
+    undefined_elements:
+      - "在庫確認のタイミング"
+      - "同時実行制御の方法"
+    consequences:
+      - type: "business"
+        description: "在庫マイナスによる出荷不可"
+        severity: "high"
+    detection_phase: "testing"
+    remediation_cost_multiplier: 10
+
+  - id: "authentication_weakness"
+    name: "認証の脆弱性"
+    undefined_elements:
+      - "トークン保存場所"
+      - "トークン無効化手段"
+    consequences:
+      - type: "security"
+        description: "不正アクセス"
+        severity: "critical"
+    detection_phase: "production"
+    remediation_cost_multiplier: 50
+
+

@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>未定義要素検出器</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .panel {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .panel h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 300px;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            resize: vertical;
+            transition: border-color 0.3s;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            flex: 1;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        .btn-primary:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .result {
+            display: none;
+        }
+
+        .result.active {
+            display: block;
+        }
+
+        .summary-box {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+
+        .summary-item {
+            margin: 8px 0;
+            font-size: 14px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 5px;
+        }
+
+        .badge-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .badge-warning {
+            background: #ffc107;
+            color: #333;
+        }
+
+        .badge-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .category-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin: 15px 0;
+        }
+
+        .stat-card {
+            background: white;
+            border: 1px solid #e0e0e0;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .element-list {
+            margin-top: 20px;
+        }
+
+        .element-item {
+            background: #f8f9fa;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 5px;
+        }
+
+        .element-item.high {
+            border-left-color: #dc3545;
+        }
+
+        .element-item.medium {
+            border-left-color: #ffc107;
+        }
+
+        .element-item.low {
+            border-left-color: #28a745;
+        }
+
+        .element-title {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .element-meta {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .element-description {
+            font-size: 14px;
+            color: #444;
+            margin-bottom: 10px;
+        }
+
+        .questions {
+            margin-top: 10px;
+            padding-left: 20px;
+        }
+
+        .questions li {
+            margin: 5px 0;
+            color: #555;
+            font-size: 13px;
+        }
+
+        .examples {
+            margin-top: 15px;
+        }
+
+        .example-btn {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            text-align: left;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .example-btn:hover {
+            background: #e9ecef;
+            border-color: #667eea;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 未定義要素検出器</h1>
+            <p class="subtitle">要件や仕様から未定義要素を自動検出します</p>
+        </div>
+
+        <div class="main-content">
+            <!-- 入力パネル -->
+            <div class="panel">
+                <h2>📝 要件文書の入力</h2>
+                <textarea id="inputText" placeholder="要件や仕様を入力してください...
+
+例:
+ユーザーは商品をカートに追加できる。
+在庫がある場合のみ追加可能。
+
+システムは高速に動作すること。
+安全に処理すること。"></textarea>
+                
+                <div class="button-group">
+                    <button class="btn-primary" id="analyzeBtn">分析開始</button>
+                    <button class="btn-secondary" id="clearBtn">クリア</button>
+                </div>
+
+                <div class="examples">
+                    <h3 style="margin: 20px 0 10px 0; font-size: 14px; color: #666;">サンプル要件</h3>
+                    <button class="example-btn" data-example="ec-cart">
+                        🛒 ECサイト カート機能
+                    </button>
+                    <button class="example-btn" data-example="user-auth">
+                        🔐 ユーザー認証
+                    </button>
+                    <button class="example-btn" data-example="api-spec">
+                        📡 API仕様
+                    </button>
+                </div>
+            </div>
+
+            <!-- 結果パネル -->
+            <div class="panel">
+                <h2>📊 分析結果</h2>
+                
+                <div class="loading" id="loading">
+                    <div class="spinner"></div>
+                    <p>分析中...</p>
+                </div>
+
+                <div class="result" id="result">
+                    <div class="summary-box" id="summary">
+                        <!-- サマリーがここに表示される -->
+                    </div>
+
+                    <div class="category-stats" id="categoryStats">
+                        <!-- カテゴリ別統計がここに表示される -->
+                    </div>
+
+                    <div class="element-list" id="elementList">
+                        <!-- 未定義要素のリストがここに表示される -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const inputText = document.getElementById('inputText');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const loading = document.getElementById('loading');
+        const result = document.getElementById('result');
+        const summary = document.getElementById('summary');
+        const categoryStats = document.getElementById('categoryStats');
+        const elementList = document.getElementById('elementList');
+
+        // サンプル要件のロードと適用
+        let examples = {};
+
+        fetch('/api/examples')
+            .then(res => res.json())
+            .then(data => {
+                examples = {};
+                data.examples.forEach(ex => {
+                    examples[ex.id] = ex.content;
+                });
+            });
+
+        document.querySelectorAll('.example-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const exampleId = this.dataset.example;
+                if (examples[exampleId]) {
+                    inputText.value = examples[exampleId];
+                }
+            });
+        });
+
+        // 分析実行
+        analyzeBtn.addEventListener('click', async () => {
+            const content = inputText.value.trim();
+            
+            if (!content) {
+                alert('要件文書を入力してください');
+                return;
+            }
+
+            // UIの状態変更
+            analyzeBtn.disabled = true;
+            loading.classList.add('active');
+            result.classList.remove('active');
+
+            try {
+                const response = await fetch('/api/analyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ content })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    displayResults(data.report);
+                } else {
+                    displayError(data.error || '分析に失敗しました');
+                }
+            } catch (error) {
+                displayError('サーバーとの通信に失敗しました: ' + error.message);
+            } finally {
+                analyzeBtn.disabled = false;
+                loading.classList.remove('active');
+            }
+        });
+
+        // クリア
+        clearBtn.addEventListener('click', () => {
+            inputText.value = '';
+            result.classList.remove('active');
+        });
+
+        // 結果表示
+        function displayResults(report) {
+            // サマリー
+            const exec = report.executive_summary;
+            summary.innerHTML = `
+                <h3 style="margin-bottom: 10px; color: #667eea;">エグゼクティブサマリー</h3>
+                <div class="summary-item">
+                    総合評価: <span class="badge ${getBadgeClass(exec.overall_assessment)}">${exec.overall_assessment}</span>
+                </div>
+                <div class="summary-item">
+                    未定義要素: <strong>${exec.total_undefined}件</strong>
+                    ${exec.high_risk_count > 0 ? `<span class="badge badge-danger">高リスク: ${exec.high_risk_count}件</span>` : ''}
+                </div>
+                ${exec.key_findings.length > 0 ? `
+                    <div class="summary-item">
+                        <strong>主な発見:</strong>
+                        <ul style="margin-top: 5px; padding-left: 20px;">
+                            ${exec.key_findings.map(f => `<li>${f}</li>`).join('')}
+                        </ul>
+                    </div>
+                ` : ''}
+            `;
+
+            // カテゴリ別統計
+            const byCategory = report.undefined_elements.by_category;
+            categoryStats.innerHTML = Object.entries(byCategory)
+                .map(([category, count]) => `
+                    <div class="stat-card">
+                        <div class="stat-number">${count}</div>
+                        <div class="stat-label">${category}</div>
+                    </div>
+                `).join('');
+
+            // 未定義要素リスト
+            const elements = report.undefined_elements.elements;
+            if (elements.length === 0) {
+                elementList.innerHTML = '<p style="color: #28a745; text-align: center; padding: 20px;">✅ 未定義要素は検出されませんでした！</p>';
+            } else {
+                elementList.innerHTML = `
+                    <h3 style="margin-bottom: 15px; color: #333;">未定義要素の詳細（上位${Math.min(elements.length, 10)}件）</h3>
+                    ${elements.slice(0, 10).map((elem, i) => `
+                        <div class="element-item ${elem.severity}">
+                            <div class="element-title">${i + 1}. ${elem.title}</div>
+                            <div class="element-meta">
+                                カテゴリ: ${elem.category} / ${elem.subcategory} | 
+                                重要度: <span class="badge ${getSeverityBadgeClass(elem.severity)}">${elem.severity.toUpperCase()}</span> |
+                                信頼度: ${(elem.confidence * 100).toFixed(0)}%
+                            </div>
+                            <div class="element-description">${elem.description}</div>
+                            ${elem.questions.length > 0 ? `
+                                <details>
+                                    <summary style="cursor: pointer; color: #667eea; font-weight: 600;">質問 (${elem.questions.length}件)</summary>
+                                    <ul class="questions">
+                                        ${elem.questions.map(q => `<li>${q}</li>`).join('')}
+                                    </ul>
+                                </details>
+                            ` : ''}
+                        </div>
+                    `).join('')}
+                `;
+            }
+
+            result.classList.add('active');
+        }
+
+        function displayError(message) {
+            summary.innerHTML = `<div class="error">❌ エラー: ${message}</div>`;
+            categoryStats.innerHTML = '';
+            elementList.innerHTML = '';
+            result.classList.add('active');
+        }
+
+        function getBadgeClass(assessment) {
+            if (assessment === '良好') return 'badge-success';
+            if (assessment === '要改善') return 'badge-warning';
+            return 'badge-danger';
+        }
+
+        function getSeverityBadgeClass(severity) {
+            if (severity === 'high' || severity === 'critical') return 'badge-danger';
+            if (severity === 'medium') return 'badge-warning';
+            return 'badge-success';
+        }
+    </script>
+</body>
+</html>
+
