@@ -12,14 +12,21 @@ from usd.modules.action_classifier import ActionTypeClassifier
 
 
 class AnalysisCoordinator:
-    """分析ワークフローを統合・調整するクラス（v2.0）"""
+    """分析ワークフローを統合・調整するクラス（v2.1 - LLM統合）"""
     
-    def __init__(self):
-        """初期化"""
+    def __init__(self, use_llm: bool = False, api_key: Optional[str] = None):
+        """
+        初期化
+        
+        Args:
+            use_llm: LLMを使用するかどうか（デフォルト: False）
+            api_key: OpenAI API Key（use_llm=Trueの場合に必要）
+        """
         self.parser = RequirementParser()
-        self.extractor = UndefinedExtractor()
+        self.extractor = UndefinedExtractor(use_llm=use_llm, api_key=api_key)
         self.classifier = ActionTypeClassifier()
         # Risk Analyzer と Remediation Advisor は将来実装
+        self.use_llm = use_llm
     
     def analyze(
         self,
@@ -61,8 +68,10 @@ class AnalysisCoordinator:
         print(f"✓ {parsed_req.statistics.total_entities}個のエンティティを検出")
         print(f"✓ {parsed_req.statistics.total_actions}個のアクションを検出")
         
-        # 3. Module 2: 未定義要素の抽出（v2.0 - コンテキスト駆動型）
+        # 3. Module 2: 未定義要素の抽出（v2.1 - LLM統合型）
         print("\n🔍 未定義要素を検出中...")
+        if self.use_llm:
+            print("   （LLMモード有効）")
         undefined_elements = self.extractor.extract(parsed_req)
         print(f"✓ {undefined_elements.statistics['total_undefined']}個の未定義要素を検出")
         
@@ -82,6 +91,19 @@ class AnalysisCoordinator:
                 print(f"  🟡 要確認: {warning_count}件")
             if ok_count > 0:
                 print(f"  🟢 後決めOK: {ok_count}件")
+            
+            # 🆕 検出方法別の表示
+            if "by_method" in undefined_elements.statistics:
+                print("\n検出方法別:")
+                for method, count in undefined_elements.statistics["by_method"].items():
+                    method_name = {
+                        "rule_based": "ルールベース",
+                        "template_driven": "テンプレート",
+                        "llm": "LLM",
+                        "semantic_analysis": "意味解析",
+                        "pattern_matching": "パターンマッチ"
+                    }.get(method, method)
+                    print(f"  - {method_name}: {count}件")
         
         # カテゴリ別の表示
         if undefined_elements.statistics.get('by_category'):
@@ -142,7 +164,7 @@ class AnalysisCoordinator:
         return {
             "report_id": f"REPORT-{datetime.now().strftime('%Y%m%d-%H%M%S')}",
             "generated_at": datetime.now().isoformat(),
-            "system_version": "2.0.0",
+            "system_version": "2.1.0-hybrid",  # 🆕 バージョン更新
             
             "input_document": {
                 "content": input_doc.content,

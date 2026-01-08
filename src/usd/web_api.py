@@ -27,8 +27,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 分析コーディネーターのインスタンス
-coordinator = AnalysisCoordinator()
+# 分析コーディネーターのインスタンス（グローバル変数は削除）
+# coordinator = AnalysisCoordinator()  # 削除: リクエストごとに生成する
 
 
 # リクエストモデル
@@ -37,6 +37,8 @@ class AnalysisRequest(BaseModel):
     content: str
     metadata: Optional[Dict[str, Any]] = None
     options: Optional[Dict[str, Any]] = None
+    use_llm: bool = False  # 🆕 LLMを使用するかどうか
+    api_key: Optional[str] = None  # 🆕 OpenAI API Key
 
 
 class AnalysisResponse(BaseModel):
@@ -83,7 +85,19 @@ async def analyze(request: AnalysisRequest):
         if not request.content or not request.content.strip():
             raise HTTPException(status_code=400, detail="content is required")
         
+        # LLM使用時のAPIキーチェック
+        if request.use_llm and not request.api_key:
+            raise HTTPException(
+                status_code=400, 
+                detail="api_key is required when use_llm=true"
+            )
+        
         # 分析実行
+        coordinator = AnalysisCoordinator(
+            use_llm=request.use_llm,
+            api_key=request.api_key
+        )
+        
         report = coordinator.analyze(
             content=request.content,
             metadata=request.metadata,

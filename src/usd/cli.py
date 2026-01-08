@@ -33,8 +33,18 @@ def cli():
               help='出力ファイル（結果レポート）')
 @click.option('--format', '-f', type=click.Choice(['json', 'markdown', 'text']),
               default='text', help='出力形式')
-def analyze(input, output, format):
+@click.option('--use-llm', is_flag=True, 
+              help='LLMを使用して高度な分析を行う')
+@click.option('--openai-api-key', envvar='OPENAI_API_KEY',
+              help='OpenAI API Key（環境変数OPENAI_API_KEYでも可）')
+def analyze(input, output, format, use_llm, openai_api_key):
     """要件文書を分析する"""
+    
+    # LLM使用時のAPIキーチェック
+    if use_llm and not openai_api_key:
+        console.print("❌ エラー: --use-llm を使用する場合は --openai-api-key が必要です", err=True, style="bold red")
+        console.print("   環境変数 OPENAI_API_KEY を設定するか、--openai-api-key オプションを指定してください。", style="yellow")
+        return
     
     # ファイルを読み込み
     input_path = Path(input)
@@ -43,10 +53,13 @@ def analyze(input, output, format):
     with open(input_path, 'r', encoding='utf-8') as f:
         content = f.read()
     
-    console.print(f"📄 文書サイズ: {len(content)}文字\n")
+    console.print(f"📄 文書サイズ: {len(content)}文字")
+    if use_llm:
+        console.print("🤖 LLMモード: 有効", style="bold green")
+    console.print()
     
     # 分析実行
-    coordinator = AnalysisCoordinator()
+    coordinator = AnalysisCoordinator(use_llm=use_llm, api_key=openai_api_key)
     
     with console.status("[bold green]分析中...", spinner="dots"):
         report = coordinator.analyze(content)

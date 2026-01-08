@@ -25,17 +25,54 @@ from usd.modules.question_generator import QuestionGenerator
 
 
 class UndefinedExtractor:
-    """未定義要素を抽出するメインクラス（v2.0 - コンテキスト駆動型）"""
+    """未定義要素を抽出するメインクラス（v2.1 - LLM統合型）"""
     
-    def __init__(self):
-        """初期化"""
-        self.version = "2.0.0"
+    def __init__(self, use_llm: bool = False, api_key: Optional[str] = None):
+        """
+        初期化
+        
+        Args:
+            use_llm: LLMを使用するかどうか（デフォルト: False）
+            api_key: OpenAI API Key（use_llm=Trueの場合に必要）
+        """
+        self.version = "2.1.0-hybrid"
         self._load_detection_rules()
         
         # 新しいモジュールの初期化
         self.action_classifier = ActionTypeClassifier()
         self.criticality_judge = CriticalityJudge()
         self.question_generator = QuestionGenerator()
+        
+        # 🆕 LLMモジュール（オプション）
+        self.use_llm = use_llm
+        self.llm_unknown_detector = None
+        self.llm_ambiguity_detector = None
+        self.llm_question_generator = None
+        
+        if use_llm:
+            if not api_key:
+                print("⚠️  use_llm=True ですが api_key が指定されていません。LLM機能はスキップされます。")
+            else:
+                try:
+                    from usd.llm.llm_detector import (
+                        LLMUnknownTermDetector,
+                        LLMContextualAmbiguityDetector,
+                        LLMQuestionGenerator,
+                    )
+                    
+                    print("✓ LLMモジュールを初期化中...")
+                    self.llm_unknown_detector = LLMUnknownTermDetector(api_key)
+                    self.llm_ambiguity_detector = LLMContextualAmbiguityDetector(api_key)
+                    self.llm_question_generator = LLMQuestionGenerator(api_key)
+                    print("✓ LLMモジュール初期化完了")
+                
+                except ImportError as e:
+                    print(f"⚠️  LLMモジュールのインポートに失敗しました: {e}")
+                    print("   openai パッケージがインストールされているか確認してください。")
+                    self.use_llm = False
+                except Exception as e:
+                    print(f"⚠️  LLMモジュールの初期化に失敗しました: {e}")
+                    self.use_llm = False
     
     def _load_detection_rules(self):
         """検出ルールを読み込み"""
@@ -91,10 +128,38 @@ class UndefinedExtractor:
             elements = self._extract_from_requirement(requirement)
             undefined_elements.extend(elements)
         
-        # 6. 統計情報の計算
+        # 🆕 6. LLMによる検出（オプション）
+        if self.use_llm and self.llm_unknown_detector:
+            try:
+                print("\n🤖 LLMで追加の未定義要素を検出中...")
+                
+                # 6-1. 未知の用語を検出
+                llm_unknown_elements = self.llm_unknown_detector.detect_unknown_terms(
+                    parsed_req.original_content
+                )
+                undefined_elements.extend(llm_unknown_elements)
+                
+                # 6-2. 文脈依存の曖昧さを検出（既検出要素を除外）
+                if self.llm_ambiguity_detector:
+                    llm_ambiguity_elements = self.llm_ambiguity_detector.detect_ambiguities(
+                        parsed_req.original_content,
+                        already_detected=undefined_elements
+                    )
+                    undefined_elements.extend(llm_ambiguity_elements)
+                
+                print(f"✓ LLMで合計 {len(llm_unknown_elements) + len(llm_ambiguity_elements)} 個検出")
+                
+            except Exception as e:
+                # LLM失敗時もアプリ全体を止めない
+                print(f"⚠️  LLM検出に失敗しましたが、処理を続行します: {e}")
+        
+        # 7. 重複排除（同じtitleが複数検出された場合は1つにまとめる）
+        undefined_elements = self._deduplicate(undefined_elements)
+        
+        # 8. 統計情報の計算
         statistics = self._calculate_statistics(undefined_elements)
         
-        # 7. メタ分析
+        # 9. メタ分析
         meta_analysis = self._perform_meta_analysis(parsed_req, undefined_elements)
         
         return UndefinedElements(
@@ -554,7 +619,8 @@ class UndefinedExtractor:
             "total_undefined": len(elements),
             "by_category": {},
             "by_confidence": {"high": 0, "medium": 0, "low": 0},
-            "by_severity": {}
+            "by_severity": {},
+            "by_method": {}  # 🆕 検出方法別の統計
         }
         
         for element in elements:
@@ -573,8 +639,43 @@ class UndefinedExtractor:
             # 重要度別
             severity = element.estimated_severity.value
             stats["by_severity"][severity] = stats["by_severity"].get(severity, 0) + 1
+            
+            # 🆕 検出方法別
+            method = element.detection.method
+            stats["by_method"][method] = stats["by_method"].get(method, 0) + 1
         
         return stats
+    
+    def _deduplicate(self, elements: List[UndefinedElement]) -> List[UndefinedElement]:
+        """
+        重複する未定義要素を除去
+        
+        同じtitleを持つ要素がある場合、信頼度の高い方を残す
+        
+        Args:
+            elements: 未定義要素のリスト
+        
+        Returns:
+            重複を除去したリスト
+        """
+        if not elements:
+            return []
+        
+        # titleをキーとした辞書
+        unique_map = {}
+        
+        for elem in elements:
+            title = elem.title
+            
+            if title not in unique_map:
+                unique_map[title] = elem
+            else:
+                # 既存要素と比較し、信頼度の高い方を保持
+                existing = unique_map[title]
+                if elem.detection.confidence > existing.detection.confidence:
+                    unique_map[title] = elem
+        
+        return list(unique_map.values())
     
     def _perform_meta_analysis(
         self,

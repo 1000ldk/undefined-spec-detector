@@ -26,6 +26,9 @@ uvicorn[standard]>=0.24.0
 # CORS対応
 python-multipart>=0.0.6
 
+# LLM統合（OpenAI GPT-4o）
+openai>=1.50.0
+
 # ユーティリティ
 python-dateutil>=2.8.0
 
