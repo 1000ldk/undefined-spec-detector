@@ -1,0 +1,71 @@
+# 認証系処理のチェックリストテンプレート
+version: "1.0.0"
+action_type: "AUTHENTICATION"
+base_severity: "CRITICAL"
+
+checklist:
+  - id: "auth_001"
+    title: "認証方式"
+    question: "認証方式は何を採用するか？"
+    criticality: "MUST_DEFINE"
+    default_assumption: null
+    why_critical: "アーキテクチャの根幹。後から変更は全面的な作り直し"
+    change_cost_if_later: "200-300時間"
+    affects:
+      - data_model: true
+      - external_system: false
+      - security: true
+    detection_phase: "design"
+    options:
+      - value: "jwt"
+        label: "JWT（JSON Web Token）"
+      - value: "session"
+        label: "セッションベース"
+      - value: "oauth"
+        label: "OAuth 2.0"
+    
+  - id: "auth_002"
+    title: "トークン有効期限"
+    question: "認証トークンの有効期限は？"
+    criticality: "MUST_DEFINE"
+    default_assumption: null
+    why_critical: "セキュリティとUXのバランス"
+    affects:
+      - data_model: false
+      - external_system: false
+      - security: true
+    detection_phase: "design"
+    
+  - id: "auth_003"
+    title: "トークン保存場所"
+    question: "クライアント側でトークンをどこに保存するか？"
+    criticality: "MUST_DEFINE"
+    default_assumption: null
+    why_critical: "XSS攻撃のリスク"
+    affects:
+      - data_model: false
+      - external_system: false
+      - security: true
+    detection_phase: "implementation"
+    options:
+      - value: "cookie"
+        label: "Cookie（HttpOnly）"
+        pros: ["XSS攻撃に強い"]
+        cons: ["CSRF対策が必要"]
+      - value: "localstorage"
+        label: "LocalStorage"
+        pros: ["実装が簡単"]
+        cons: ["XSS攻撃に弱い"]
+
+recommended_order:
+  - auth_001
+  - auth_002
+  - auth_003
+
+risk_patterns:
+  - name: "トークン漏洩"
+    probability: "HIGH"
+    impact: "CRITICAL"
+
+
+

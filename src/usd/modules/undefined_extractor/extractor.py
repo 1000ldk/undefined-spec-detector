@@ -1,10 +1,10 @@
 """
-Module 2: Undefined Extractor
-未定義要素を抽出する
+Module 2: Undefined Extractor v2.0
+未定義要素を抽出する（コンテキスト駆動型）
 """
 import re
 import uuid
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from datetime import datetime
 
 from usd.schema import (
@@ -18,14 +18,24 @@ from usd.schema import (
     MetaAnalysis,
 )
 
+# 新しいモジュールをインポート
+from usd.modules.action_classifier import ActionTypeClassifier, ActionType
+from usd.modules.criticality_judge import CriticalityJudge, Criticality
+from usd.modules.question_generator import QuestionGenerator
+
 
 class UndefinedExtractor:
-    """未定義要素を抽出するメインクラス"""
+    """未定義要素を抽出するメインクラス（v2.0 - コンテキスト駆動型）"""
     
     def __init__(self):
         """初期化"""
-        self.version = "1.0.0"
+        self.version = "2.0.0"
         self._load_detection_rules()
+        
+        # 新しいモジュールの初期化
+        self.action_classifier = ActionTypeClassifier()
+        self.criticality_judge = CriticalityJudge()
+        self.question_generator = QuestionGenerator()
     
     def _load_detection_rules(self):
         """検出ルールを読み込み"""
@@ -44,7 +54,7 @@ class UndefinedExtractor:
     
     def extract(self, parsed_req: ParsedRequirement) -> UndefinedElements:
         """
-        未定義要素を抽出する
+        未定義要素を抽出する（v2.0 - コンテキスト駆動型）
         
         Args:
             parsed_req: 構造化された要件（Module 1の出力）
@@ -54,25 +64,37 @@ class UndefinedExtractor:
         """
         undefined_elements = []
         
-        # 1. エンティティから抽出
+        # 【新機能】1. 処理タイプを分類
+        content = parsed_req.original_content
+        classification = self.action_classifier.classify(content)
+        
+        # 【新機能】2. 処理タイプ別のチェックリストを取得
+        if classification.action_type != ActionType.UNKNOWN:
+            elements = self._extract_from_checklist(
+                classification,
+                parsed_req
+            )
+            undefined_elements.extend(elements)
+        
+        # 3. 従来の方法でも抽出（エンティティから）
         for entity in parsed_req.entities:
             elements = self._extract_from_entity(entity, parsed_req)
             undefined_elements.extend(elements)
         
-        # 2. アクションから抽出
+        # 4. アクションから抽出（ただし重複を避ける）
         for action in parsed_req.actions:
-            elements = self._extract_from_action(action, parsed_req)
+            elements = self._extract_from_action(action, parsed_req, classification)
             undefined_elements.extend(elements)
         
-        # 3. 要件から抽出
+        # 5. 要件から抽出
         for requirement in parsed_req.requirements:
             elements = self._extract_from_requirement(requirement)
             undefined_elements.extend(elements)
         
-        # 4. 統計情報の計算
+        # 6. 統計情報の計算
         statistics = self._calculate_statistics(undefined_elements)
         
-        # 5. メタ分析
+        # 7. メタ分析
         meta_analysis = self._perform_meta_analysis(parsed_req, undefined_elements)
         
         return UndefinedElements(
@@ -83,6 +105,136 @@ class UndefinedExtractor:
             undefined_elements=undefined_elements,
             statistics=statistics,
             meta_analysis=meta_analysis
+        )
+    
+    def _extract_from_checklist(
+        self,
+        classification,
+        parsed_req: ParsedRequirement
+    ) -> List[UndefinedElement]:
+        """
+        処理タイプ別のチェックリストから未定義要素を抽出
+        
+        Args:
+            classification: 処理タイプの分類結果
+            parsed_req: 構造化された要件
+            
+        Returns:
+            未定義要素のリスト
+        """
+        elements = []
+        
+        # 処理タイプに応じたチェックリストを取得
+        action_type_str = classification.action_type.name
+        checklist_items = self.criticality_judge.get_checklist_for_action_type(action_type_str)
+        
+        # コンテキスト情報の準備
+        context = {
+            "entity": classification.detected_entities[0] if classification.detected_entities else "対象",
+            "action_type": classification.action_type.value,
+            "original_text": classification.context
+        }
+        
+        # 各チェック項目を未定義要素として抽出
+        for item in checklist_items:
+            # 致命度を判定
+            criticality_result = self.criticality_judge.judge(
+                item,
+                action_type_str,
+                context
+            )
+            
+            # 質問を生成
+            practical_question = self.question_generator.generate(item, context)
+            
+            # UndefinedElementに変換
+            element = self._convert_to_undefined_element(
+                item,
+                criticality_result,
+                practical_question,
+                parsed_req
+            )
+            
+            elements.append(element)
+        
+        return elements
+    
+    def _convert_to_undefined_element(
+        self,
+        checklist_item: Dict[str, Any],
+        criticality_result,
+        practical_question,
+        parsed_req: ParsedRequirement
+    ) -> UndefinedElement:
+        """
+        チェックリスト項目をUndefinedElementに変換
+        
+        Args:
+            checklist_item: チェックリスト項目
+            criticality_result: 致命度判定結果
+            practical_question: 実践的な質問
+            parsed_req: 構造化要件
+            
+        Returns:
+            UndefinedElement
+        """
+        # 致命度をPriorityに変換
+        if criticality_result.criticality == Criticality.MUST_DEFINE:
+            priority = Priority.CRITICAL
+        elif criticality_result.criticality == Criticality.SHOULD_CONFIRM:
+            priority = Priority.HIGH
+        else:
+            priority = Priority.MEDIUM
+        
+        # 質問をQuestionオブジェクトに変換
+        questions = [
+            Question(
+                text=practical_question.question,
+                type="specification",
+                suggested_answers=[opt["label"] for opt in practical_question.options] if practical_question.options else None
+            )
+        ]
+        
+        # 例も質問として追加
+        for example in practical_question.examples:
+            questions.append(
+                Question(
+                    text=example,
+                    type="clarification"
+                )
+            )
+        
+        # カテゴリの決定
+        category = checklist_item.get("category", "処理タイプ固有の確認事項")
+        
+        # コンテキストの作成
+        context = Context(
+            source_text=parsed_req.original_content[:100],
+            surrounding_text=parsed_req.original_content,
+            line_number=1
+        )
+        
+        return UndefinedElement(
+            id=checklist_item.get("id", self._generate_id()),
+            category=category,
+            subcategory=checklist_item.get("title", ""),
+            title=practical_question.title,
+            description=practical_question.explanation,
+            questions=questions,
+            detection=DetectionInfo(
+                method="template_driven",
+                confidence=criticality_result.score / 10.0,
+                reasoning=f"処理タイプ別チェックリストによる検出。{criticality_result.reason}"
+            ),
+            context=context,
+            estimated_severity=priority,
+            criticality_info={
+                "level": criticality_result.criticality.value,
+                "change_cost": criticality_result.change_cost_if_later,
+                "timing": criticality_result.recommended_decision_timing,
+                "who_to_ask": practical_question.who_to_ask,
+                "default": criticality_result.default_assumption
+            }
         )
     
     def _extract_from_entity(self, entity, parsed_req: ParsedRequirement) -> List[UndefinedElement]:
@@ -140,8 +292,15 @@ class UndefinedExtractor:
         
         return elements
     
-    def _extract_from_action(self, action, parsed_req: ParsedRequirement) -> List[UndefinedElement]:
-        """アクションから未定義要素を抽出"""
+    def _extract_from_action(self, action, parsed_req: ParsedRequirement, classification=None) -> List[UndefinedElement]:
+        """
+        アクションから未定義要素を抽出
+        
+        Args:
+            action: アクション
+            parsed_req: 構造化要件
+            classification: 処理タイプの分類結果（重複回避用）
+        """
         elements = []
         
         # 前提条件が曖昧
@@ -169,27 +328,40 @@ class UndefinedExtractor:
                 elements.append(element)
         
         # エラーハンドリングの欠落
+        # ※ チェックリストベースで既に検出されている場合はスキップ
         if action.error_handling and not action.error_handling.defined:
-            element_id = self._generate_id()
-            context = self._get_action_context(action, parsed_req)
-            
-            element = UndefinedElement(
-                id=element_id,
-                category="エラーハンドリングの欠落",
-                subcategory="ユーザーフィードバック",
-                related_action=action.id,
-                title=f"{action.verb}のエラー処理が未定義",
-                description="エラー発生時の挙動やユーザーへのフィードバックが定義されていません",
-                questions=self._generate_questions_for_error_handling(action),
-                detection=DetectionInfo(
-                    method="rule_based",
-                    confidence=0.8,
-                    reasoning="正常系の記述のみでエラー処理の言及がない"
-                ),
-                context=context,
-                estimated_severity=Priority.MEDIUM
-            )
-            elements.append(element)
+            # 処理タイプ別のチェックリストで既にカバーされている場合はスキップ
+            if classification and classification.action_type != ActionType.UNKNOWN:
+                # チェックリストで対応済みなのでスキップ
+                pass
+            else:
+                # 処理タイプが不明な場合は従来通り検出
+                element_id = self._generate_id()
+                context = self._get_action_context(action, parsed_req)
+                
+                # 動詞が「処理」の場合はアクションIDを含める
+                if action.verb == "処理":
+                    title = f"アクション {action.id} のエラー処理が未定義"
+                else:
+                    title = f"{action.verb}のエラー処理が未定義"
+                
+                element = UndefinedElement(
+                    id=element_id,
+                    category="エラーハンドリングの欠落",
+                    subcategory="ユーザーフィードバック",
+                    related_action=action.id,
+                    title=title,
+                    description="エラー発生時の挙動やユーザーへのフィードバックが定義されていません",
+                    questions=self._generate_questions_for_error_handling(action),
+                    detection=DetectionInfo(
+                        method="rule_based",
+                        confidence=0.8,
+                        reasoning="正常系の記述のみでエラー処理の言及がない"
+                    ),
+                    context=context,
+                    estimated_severity=Priority.MEDIUM
+                )
+                elements.append(element)
         
         return elements
     

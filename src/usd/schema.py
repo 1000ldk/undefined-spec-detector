@@ -181,7 +181,7 @@ class Question(BaseModel):
 
 class DetectionInfo(BaseModel):
     """検出情報"""
-    method: Literal["pattern_matching", "semantic_analysis", "rule_based", "ml_model"]
+    method: Literal["pattern_matching", "semantic_analysis", "rule_based", "ml_model", "template_driven"]
     confidence: float
     reasoning: str
 
@@ -209,6 +209,7 @@ class UndefinedElement(BaseModel):
     context: Context
     cross_references: List[str] = Field(default_factory=list)
     estimated_severity: Priority = Priority.MEDIUM
+    criticality_info: Optional[Dict[str, Any]] = None  # 新規追加: 致命度情報
 
 
 class UndefinedElementGroup(BaseModel):

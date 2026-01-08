@@ -1,0 +1,126 @@
+# 外部連携系処理のチェックリストテンプレート
+version: "1.0.0"
+action_type: "EXTERNAL_API"
+base_severity: "HIGH"
+
+checklist:
+  - id: "ext_001"
+    title: "タイムアウト設定"
+    question: "外部API呼び出しは何秒でタイムアウトとするか？"
+    criticality: "MUST_DEFINE"  # 🔴 未定義不可
+    default_assumption: null
+    why_critical: "無限待機するとシステム全体が停止する。必ず設定が必要"
+    change_cost_if_later: "5-10時間（設定値の調整）"
+    affects:
+      - data_model: false
+      - external_system: true
+      - security: false
+    detection_phase: "implementation"
+    options:
+      - value: "5"
+        label: "5秒（短め・リアルタイム系）"
+      - value: "30"
+        label: "30秒（標準）"
+      - value: "60"
+        label: "60秒（重い処理）"
+    
+  - id: "ext_002"
+    title: "リトライ戦略"
+    question: "失敗時に何回リトライするか？リトライ間隔は？"
+    criticality: "SHOULD_DEFINE"  # 🟡 定義推奨
+    default_assumption: "3回、指数バックオフ（1秒、2秒、4秒）"
+    why_critical: "リトライなしだと一時的な障害で失敗。リトライ過多は負荷増"
+    change_cost_if_later: "5-10時間"
+    affects:
+      - data_model: false
+      - external_system: true
+      - security: false
+    detection_phase: "implementation"
+    
+  - id: "ext_003"
+    title: "フォールバック処理"
+    question: "API障害時の代替挙動は？"
+    criticality: "MUST_DEFINE"  # 🔴 未定義不可
+    default_assumption: null
+    why_critical: "外部システムは必ず障害が起きる。フォールバックなしは致命的"
+    change_cost_if_later: "20-40時間（代替処理の実装）"
+    affects:
+      - data_model: false
+      - external_system: true
+      - security: false
+    detection_phase: "design"
+    options:
+      - value: "cache"
+        label: "キャッシュを返す"
+      - value: "default"
+        label: "デフォルト値を使う"
+      - value: "error_screen"
+        label: "エラー画面を表示"
+      - value: "queue"
+        label: "キューに入れて後で再実行"
+    
+  - id: "ext_004"
+    title: "認証情報の管理"
+    question: "APIキー/トークンはどこに保存するか？"
+    criticality: "MUST_DEFINE"  # 🔴 未定義不可
+    default_assumption: null
+    why_critical: "セキュリティリスク。漏洩すると外部システムへの不正アクセス"
+    change_cost_if_later: "30-50時間（認証方式の変更）"
+    affects:
+      - data_model: false
+      - external_system: true
+      - security: true
+    detection_phase: "design"
+    options:
+      - value: "env"
+        label: "環境変数"
+        pros: ["シンプル", "デプロイ時に変更可能"]
+        cons: ["ローテーションしにくい"]
+      - value: "secrets_manager"
+        label: "シークレット管理サービス（AWS Secrets Manager等）"
+        pros: ["安全", "ローテーション容易"]
+        cons: ["複雑", "コスト増"]
+    
+  - id: "ext_005"
+    title: "レスポンスバリデーション"
+    question: "外部APIのレスポンスを検証するか？"
+    criticality: "SHOULD_DEFINE"  # 🟡 定義推奨
+    default_assumption: "検証する"
+    why_critical: "不正なレスポンスでエラーになる可能性"
+    change_cost_if_later: "10-20時間"
+    affects:
+      - data_model: false
+      - external_system: true
+      - security: false
+    detection_phase: "implementation"
+    
+  - id: "ext_006"
+    title: "レート制限対応"
+    question: "外部APIのレート制限にどう対応するか？"
+    criticality: "SHOULD_CONFIRM"  # 🟡 確認推奨
+    default_assumption: "エラー時に待機"
+    why_critical: "レート制限超過でAPI呼び出し失敗"
+    change_cost_if_later: "20-30時間"
+    affects:
+      - data_model: false
+      - external_system: true
+      - security: false
+    detection_phase: "implementation"
+
+recommended_order:
+  - ext_004  # 認証情報（セキュリティ優先）
+  - ext_003  # フォールバック
+  - ext_001  # タイムアウト
+  - ext_002  # リトライ
+  - ext_005  # バリデーション
+  - ext_006  # レート制限
+
+risk_patterns:
+  - name: "外部API障害の連鎖"
+    description: "外部API障害時にフォールバックなしでシステム全体が停止"
+    probability: "HIGH"
+    impact: "CRITICAL"
+    detection_phase: "production"
+
+
+

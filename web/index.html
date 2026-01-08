@@ -234,6 +234,11 @@
             border-radius: 5px;
         }
 
+        .element-item.critical {
+            border-left-color: #dc3545;
+            background: #ffe6e8;
+        }
+
         .element-item.high {
             border-left-color: #dc3545;
         }
@@ -244,6 +249,54 @@
 
         .element-item.low {
             border-left-color: #28a745;
+        }
+        
+        /* 致命度バッジ */
+        .criticality-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 700;
+            margin: 5px 5px 5px 0;
+        }
+        
+        .criticality-must {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .criticality-should {
+            background: #ffc107;
+            color: #333;
+        }
+        
+        .criticality-can {
+            background: #28a745;
+            color: white;
+        }
+        
+        /* 処理タイプ表示 */
+        .action-type-badge {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 5px;
+            display: inline-block;
+            font-weight: 600;
+            margin: 10px 0;
+        }
+        
+        .criticality-section {
+            background: #f0f0f0;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            font-size: 13px;
+        }
+        
+        .criticality-section strong {
+            color: #667eea;
         }
 
         .element-title {
@@ -449,18 +502,44 @@
 
         // 結果表示
         function displayResults(report) {
+            // 処理タイプ情報の表示
+            let actionTypeHtml = '';
+            if (report.action_classification) {
+                const act = report.action_classification;
+                actionTypeHtml = `
+                    <div class="summary-item">
+                        <span class="action-type-badge">🎯 ${act.action_type}</span>
+                        <div style="margin-top: 5px; font-size: 12px; color: #666;">
+                            基本危険度: ${act.base_severity} | 信頼度: ${(act.confidence * 100).toFixed(0)}%
+                            ${act.detected_entities.length > 0 ? ` | 対象: ${act.detected_entities.join(', ')}` : ''}
+                        </div>
+                    </div>
+                `;
+            }
+            
             // サマリー
             const exec = report.executive_summary;
+            const byCrit = report.undefined_elements.by_criticality || {};
+            
             summary.innerHTML = `
                 <h3 style="margin-bottom: 10px; color: #667eea;">エグゼクティブサマリー</h3>
+                ${actionTypeHtml}
                 <div class="summary-item">
-                    総合評価: <span class="badge ${getBadgeClass(exec.overall_assessment)}">${exec.overall_assessment}</span>
+                    総合評価: <span class="badge ${getBadgeClass(exec.assessment_level || exec.overall_assessment)}">${exec.overall_assessment}</span>
                 </div>
                 <div class="summary-item">
                     未定義要素: <strong>${exec.total_undefined}件</strong>
                     ${exec.high_risk_count > 0 ? `<span class="badge badge-danger">高リスク: ${exec.high_risk_count}件</span>` : ''}
                 </div>
-                ${exec.key_findings.length > 0 ? `
+                ${(byCrit.must_define > 0 || byCrit.should_confirm > 0 || byCrit.can_decide_later > 0) ? `
+                    <div class="summary-item">
+                        <strong>📊 致命度別:</strong><br>
+                        ${byCrit.must_define > 0 ? `<span class="criticality-badge criticality-must">🔴 着手不可: ${byCrit.must_define}件</span>` : ''}
+                        ${byCrit.should_confirm > 0 ? `<span class="criticality-badge criticality-should">🟡 要確認: ${byCrit.should_confirm}件</span>` : ''}
+                        ${byCrit.can_decide_later > 0 ? `<span class="criticality-badge criticality-can">🟢 後決めOK: ${byCrit.can_decide_later}件</span>` : ''}
+                    </div>
+                ` : ''}
+                ${exec.key_findings && exec.key_findings.length > 0 ? `
                     <div class="summary-item">
                         <strong>主な発見:</strong>
                         <ul style="margin-top: 5px; padding-left: 20px;">
@@ -486,26 +565,41 @@
                 elementList.innerHTML = '<p style="color: #28a745; text-align: center; padding: 20px;">✅ 未定義要素は検出されませんでした！</p>';
             } else {
                 elementList.innerHTML = `
-                    <h3 style="margin-bottom: 15px; color: #333;">未定義要素の詳細（上位${Math.min(elements.length, 10)}件）</h3>
-                    ${elements.slice(0, 10).map((elem, i) => `
-                        <div class="element-item ${elem.severity}">
-                            <div class="element-title">${i + 1}. ${elem.title}</div>
-                            <div class="element-meta">
-                                カテゴリ: ${elem.category} / ${elem.subcategory} | 
-                                重要度: <span class="badge ${getSeverityBadgeClass(elem.severity)}">${elem.severity.toUpperCase()}</span> |
-                                信頼度: ${(elem.confidence * 100).toFixed(0)}%
+                    <h3 style="margin-bottom: 15px; color: #333;">未定義要素の詳細（上位${Math.min(elements.length, 20)}件）</h3>
+                    ${elements.slice(0, 20).map((elem, i) => {
+                        const crit = elem.criticality;
+                        const critBadge = crit && crit.level ? `<span class="criticality-badge ${getCriticalityClass(crit.level)}">${crit.level}</span>` : '';
+                        
+                        return `
+                            <div class="element-item ${elem.severity}">
+                                <div class="element-title">${i + 1}. ${elem.title}</div>
+                                <div class="element-meta">
+                                    カテゴリ: ${elem.category} / ${elem.subcategory} | 
+                                    重要度: <span class="badge ${getSeverityBadgeClass(elem.severity)}">${elem.severity.toUpperCase()}</span> |
+                                    信頼度: ${(elem.confidence * 100).toFixed(0)}%
+                                </div>
+                                ${critBadge}
+                                <div class="element-description">${elem.description}</div>
+                                ${crit ? `
+                                    <div class="criticality-section">
+                                        <strong>📋 詳細情報:</strong><br>
+                                        ${crit.change_cost ? `変更コスト: ${crit.change_cost}<br>` : ''}
+                                        ${crit.timing ? `推奨決定タイミング: ${crit.timing}<br>` : ''}
+                                        ${crit.who_to_ask ? `確認先: ${crit.who_to_ask}<br>` : ''}
+                                        ${crit.default ? `デフォルト: ${crit.default}` : ''}
+                                    </div>
+                                ` : ''}
+                                ${elem.questions && elem.questions.length > 0 ? `
+                                    <details>
+                                        <summary style="cursor: pointer; color: #667eea; font-weight: 600; margin-top: 10px;">質問 (${elem.questions.length}件)</summary>
+                                        <ul class="questions">
+                                            ${elem.questions.map(q => `<li>${q}</li>`).join('')}
+                                        </ul>
+                                    </details>
+                                ` : ''}
                             </div>
-                            <div class="element-description">${elem.description}</div>
-                            ${elem.questions.length > 0 ? `
-                                <details>
-                                    <summary style="cursor: pointer; color: #667eea; font-weight: 600;">質問 (${elem.questions.length}件)</summary>
-                                    <ul class="questions">
-                                        ${elem.questions.map(q => `<li>${q}</li>`).join('')}
-                                    </ul>
-                                </details>
-                            ` : ''}
-                        </div>
-                    `).join('')}
+                        `;
+                    }).join('')}
                 `;
             }
 
@@ -520,15 +614,23 @@
         }
 
         function getBadgeClass(assessment) {
-            if (assessment === '良好') return 'badge-success';
-            if (assessment === '要改善') return 'badge-warning';
-            return 'badge-danger';
+            if (assessment === '良好' || assessment === 'GOOD') return 'badge-success';
+            if (assessment === '要改善' || assessment === 'MEDIUM') return 'badge-warning';
+            if (assessment === 'CRITICAL' || assessment === 'HIGH') return 'badge-danger';
+            return 'badge-warning';
         }
 
         function getSeverityBadgeClass(severity) {
             if (severity === 'high' || severity === 'critical') return 'badge-danger';
             if (severity === 'medium') return 'badge-warning';
             return 'badge-success';
+        }
+        
+        function getCriticalityClass(level) {
+            if (level.includes('🔴')) return 'criticality-must';
+            if (level.includes('🟡')) return 'criticality-should';
+            if (level.includes('🟢')) return 'criticality-can';
+            return '';
         }
     </script>
 </body>

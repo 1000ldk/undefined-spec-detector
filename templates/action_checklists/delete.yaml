@@ -1,0 +1,184 @@
+# 削除系処理のチェックリストテンプレート
+version: "1.0.0"
+action_type: "DELETE"
+base_severity: "HIGH"
+
+# チェック項目
+checklist:
+  - id: "del_001"
+    title: "削除方式の選択"
+    question: "削除は論理削除（フラグ）か物理削除（レコード削除）か？"
+    criticality: "MUST_DEFINE"  # 🔴 未定義不可
+    default_assumption: null
+    why_critical: "実装方法が根本的に異なる。後から変更するとDB設計の全面見直しが必要になる"
+    change_cost_if_later: "100-200時間（全テーブル再設計）"
+    affects:
+      - data_model: true
+      - external_system: false
+      - security: false
+    detection_phase: "design"
+    options:
+      - value: "logical"
+        label: "論理削除（deleted_atフラグ）"
+        pros:
+          - "復元が可能"
+          - "履歴が残る"
+          - "データ分析に使える"
+        cons:
+          - "データ容量が増加"
+          - "クエリが複雑化（WHERE deleted_at IS NULL）"
+      - value: "physical"
+        label: "物理削除（レコード完全削除）"
+        pros:
+          - "シンプルで分かりやすい"
+          - "容量節約"
+          - "GDPR対応しやすい"
+        cons:
+          - "復元不可"
+          - "履歴が残らない"
+    
+  - id: "del_002"
+    title: "復元可能性"
+    question: "削除したデータは復元できる必要があるか？"
+    criticality: "SHOULD_CONFIRM"  # 🟡 確認推奨
+    default_assumption: "復元不可"
+    why_critical: "顧客からの復元依頼が来てから対応では遅い"
+    change_cost_if_later: "20-40時間（論理削除への移行）"
+    affects:
+      - data_model: true
+      - external_system: false
+      - security: false
+    detection_phase: "requirement"
+    options:
+      - value: "restorable"
+        label: "復元可能にする"
+        implementation: "論理削除または削除テーブルへの移動"
+      - value: "permanent"
+        label: "完全削除（復元不可）"
+        implementation: "物理削除"
+    
+  - id: "del_003"
+    title: "カスケード削除の範囲"
+    question: "関連データも連鎖的に削除するか？"
+    criticality: "MUST_DEFINE"  # 🔴 未定義不可
+    default_assumption: null
+    why_critical: "一度削除したデータは復元できない。ビジネスロジックの根幹"
+    examples:
+      - "ユーザー削除時、投稿は残す？削除？匿名化？"
+      - "プロジェクト削除時、タスクはどうする？"
+      - "カート削除時、カート内商品も削除？"
+    change_cost_if_later: "50-100時間（外部キー制約の変更）"
+    affects:
+      - data_model: true
+      - external_system: false
+      - security: false
+    detection_phase: "design"
+    question_template: |
+      {entity}を削除する際、以下の関連データはどうしますか？
+      {related_entities}
+      
+      選択肢:
+      A) 全て一緒に削除（カスケード削除）
+      B) 削除せず残す（孤立データとして）
+      C) 残すが参照を無効化（匿名化など）
+      D) ユーザーに選択させる
+      
+      参考:
+      - SNS: ユーザー削除時、投稿は「残す（匿名化）」が一般的
+      - プロジェクト管理ツール: プロジェクト削除時、タスクは「一緒に削除」が一般的
+    
+  - id: "del_004"
+    title: "削除権限"
+    question: "誰が削除できるか？"
+    criticality: "SHOULD_DEFINE"  # 🟡 定義推奨
+    default_assumption: "作成者本人のみ"
+    why_critical: "権限設計に関わる。セキュリティリスクあり"
+    change_cost_if_later: "10-20時間（権限チェック追加）"
+    affects:
+      - data_model: false
+      - external_system: false
+      - security: true
+    detection_phase: "design"
+    options:
+      - value: "owner_only"
+        label: "作成者本人のみ"
+      - value: "admin"
+        label: "管理者のみ"
+      - value: "owner_and_admin"
+        label: "作成者または管理者"
+      - value: "anyone"
+        label: "誰でも（権限チェックなし）"
+        warning: "セキュリティリスク高"
+    
+  - id: "del_005"
+    title: "削除ログの記録"
+    question: "誰がいつ何を削除したか記録するか？"
+    criticality: "CAN_DECIDE_LATER"  # 🟢 後で決めればOK
+    default_assumption: "記録する"
+    why_optional: "機能性には直接影響しないが、監査要件があれば必要"
+    change_cost_if_later: "5-10時間（ログ機能追加）"
+    affects:
+      - data_model: false
+      - external_system: false
+      - security: false
+    detection_phase: "implementation"
+    options:
+      - value: "detailed"
+        label: "詳細ログ（誰が・いつ・何を・なぜ）"
+      - value: "simple"
+        label: "簡易ログ（誰が・いつ・何を）"
+      - value: "none"
+        label: "記録しない"
+    
+  - id: "del_006"
+    title: "削除確認ダイアログ"
+    question: "削除前に確認ダイアログを表示するか？"
+    criticality: "CAN_DECIDE_LATER"  # 🟢 後で決めればOK
+    default_assumption: "表示する"
+    why_optional: "UX設計の問題で、後から変更容易"
+    change_cost_if_later: "1-2時間（UI修正）"
+    affects:
+      - data_model: false
+      - external_system: false
+      - security: false
+    detection_phase: "implementation"
+    
+  - id: "del_007"
+    title: "一括削除の対応"
+    question: "複数件を一度に削除できるようにするか？"
+    criticality: "SHOULD_CONFIRM"  # 🟡 確認推奨
+    default_assumption: "対応しない"
+    why_critical: "パフォーマンスとトランザクション設計に影響"
+    change_cost_if_later: "20-40時間（一括処理の実装）"
+    affects:
+      - data_model: false
+      - external_system: false
+      - security: false
+    detection_phase: "design"
+
+# 推奨確認順序
+recommended_order:
+  - del_001  # まず削除方式を決める
+  - del_003  # 次にカスケード範囲
+  - del_002  # 復元可能性
+  - del_004  # 権限
+  - del_007  # 一括削除
+  - del_005  # ログ
+  - del_006  # 確認ダイアログ
+
+# 処理タイプ固有のリスクパターン
+risk_patterns:
+  - name: "カスケード削除の想定外"
+    description: "関連データが削除されることに気づかず、データが失われる"
+    probability: "HIGH"
+    impact: "HIGH"
+    detection_phase: "testing"
+    
+  - name: "復元要望への対応不可"
+    description: "物理削除で実装後、顧客から復元要望が来る"
+    probability: "MEDIUM"
+    impact: "MEDIUM"
+    detection_phase: "production"
+
+
+
