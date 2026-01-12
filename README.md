@@ -285,7 +285,7 @@ pip install fastapi uvicorn[standard] python-multipart
 
 ## 作者
 
-AI System Architect
+千葉涼平
 
 ---
 
